@@ -258,6 +258,18 @@ myResc = function(in.dt,
   return(loc.dt)
 }
 
+myWilcoxTest = function(in.data.x, 
+                        in.data.cat, 
+                        in.method = 'fdr', 
+                        in.cut = c(0, 0.0001, 0.001, 0.01, 0.05, 1)) {
+  test.res = pairwise.wilcox.test(in.data.x, in.data.cat, p.adjust.method = in.method, paired = FALSE, alternative = 'two.sided')
+  test.res.pval = as.data.table(melt(test.res$p.value))
+  test.res.pval[, pval.levels := cut(value, in.cut, right = TRUE, include.lowest = TRUE) ]
+  
+  return(test.res.pval)
+}
+
+
 
 myGgplotTraj = function(dt.arg,
                         x.arg,
@@ -534,12 +546,19 @@ myGgplotBoxPlot = function(dt.arg,
                            xlab.arg = "Time",
                            ylab.arg = "Fl. int.",
                            plotlab.arg = "",
-                           y.lim.perc = c(0.05, 0.95)) {
+                           y.lim.perc = c(0.05, 0.95),
+                           boxplot.notch = TRUE,
+                           dotplot.view = TRUE,
+                           Dots_Dim = 0.01) {
+  
   p.tmp = ggplot(dt.arg, aes_string(x.arg, y.arg)) +
-    geom_boxplot(outlier.shape = NA, notch = TRUE) +
-    #coord_cartesian(ylim=c(0.0,1.0)) +
-    coord_cartesian(ylim = quantile(dt.arg[, get(y.arg)], y.lim.perc, na.rm = TRUE)) +
-    #    scale_color_manual(values = md_cols[-1], name = "") +
+    geom_boxplot(outlier.shape = NA, notch = boxplot.notch)
+  
+  if(dotplot.view)
+    p.tmp = p.tmp + geom_dotplot(binwidth = Dots_Dim , binaxis = "y", stackdir = "center", 
+                 fill = "black", color = "black")
+  
+    p.tmp = p.tmp + coord_cartesian(ylim = quantile(dt.arg[, get(y.arg)], y.lim.perc, na.rm = TRUE)) +
     scale_color_discrete(name = "") +
     xlab(paste0(xlab.arg, "\n")) +
     ylab(paste0("\n", ylab.arg)) +
@@ -562,4 +581,44 @@ myGgplotBoxPlot = function(dt.arg,
       legend.position = "top"
     )
   return(p.tmp)
+}
+
+
+myRasterPlot = function(in.data, 
+                        in.x = 'Var1', 
+                        in.y = 'Var2', 
+                        in.fill = 'pval.levels', 
+                        in.title.string = '',
+                        in.subtitle.string = '',
+                        in.legend.string = 'p-value:',
+                        in.breaks = rev(c( '[0,0.0001]', '(0.0001,0.001]', '(0.001,0.01]', '(0.01,0.05]', '(0.05,1]','<NA>')),
+                        in.labels = rev(c('<= 0.0001', '<= 0.001', "<= 0.01", '<= 0.05', '> 0.05',"")),
+                        in.col.vals = rhg_cols[(c(3,4,5,7,8))]) {
+  
+  p.out = ggplot(test.res.pers, aes_string(x = in.x, y = in.y, fill = in.fill)) + 
+    geom_raster() + 
+    scale_fill_manual(name = in.legend.string,
+                      na.value = 'white',
+                      breaks = in.breaks, 
+                      values = in.col.vals, 
+                      label = in.labels, 
+                      drop = FALSE) +
+    xlab("") +
+    ylab("") +  
+    ggtitle(in.title.string, subtitle = in.subtitle.string) +
+    theme_bw(base_size = 18, base_family = "Helvetica") +
+    theme(panel.grid.minor=element_blank(), 
+          panel.grid.major=element_blank(),
+          panel.border=element_blank(),
+          axis.line = element_line(colour="black"),
+          axis.text.x = element_text(size=10, angle = 45, hjust = 1),
+          strip.text.x = element_text(size=14, face="bold"),
+          strip.text.y = element_text(size=14, face="bold"),
+          strip.background = element_blank(),
+          legend.key = element_blank(),
+          legend.key.height = unit(1, "lines"),
+          legend.key.width = unit(2, "lines"),
+          legend.position = "right")
+  
+  return(p.out)
 }

@@ -23,6 +23,7 @@
 require(data.table)
 require(dplyr)
 require(ggplot2)
+require(ggrepel)
 require(xlsx)
 require(gridExtra)
 require(Hmisc) # for smean.cl.boot
@@ -303,7 +304,34 @@ dt.com.end = rbind(
 )
 
 
+#####
+## Remove outliers
 
+# add a new column with threshold value based on Condition (chemo or hapto)
+dt.pers[, cutoffThres := ifelse(Condition %like% 'Chemokinesis', 40, 20 )]
+
+# remove slow-moving cells based on total distance in um
+dt.pers.clean = dt.pers[dRtotal.um > cutoffThres]
+
+# create a vector with cellIDs from cleaned summary (with persistance, etc.) data
+v.trackid.clean = dt.pers.clean[, get(s.met.tracklabel.uni)]
+
+# create a new dt with individual tpts but select cellIDs only from the above list
+dt.nuc.sel.clean = dt.nuc.sel[get(s.met.tracklabel.uni) %in% v.trackid.clean]
+
+# median intantaneous velocity per condition
+dt.nuc.sel.clean.stat.instvel.med.percond = dt.nuc.sel.clean[, median(dV.umh, na.rm = TRUE), by = Condition]
+
+
+
+#####
+## Stat test
+
+
+pval.adjust.method = 'fdr'
+test.res.dRtotal = myWilcoxTest(dt.pers.clean$dRtotal.um, dt.pers.clean$Condition, in.method = pval.adjust.method)
+test.res.pers = myWilcoxTest(dt.pers.clean$pers, dt.pers.clean$Condition, in.method = pval.adjust.method)
+test.res.dV = myWilcoxTest(dt.pers.clean$dV.umh, dt.pers.clean$Condition, in.method = pval.adjust.method)
 
 #####
 ## Plotting 
@@ -312,6 +340,7 @@ dt.com.end = rbind(
 p.out.cond = list()
 p.out.site = list()
 p.out.box = list()
+p.out.heatmap = list()
 
 p.out.cond$plot_xy_perCond = myGgplotXYtraj(
   dt.nuc.sel,
@@ -329,8 +358,39 @@ p.out.cond$plot_xy_perCond = myGgplotXYtraj(
   point.size.arg = 3
 )
 
+p.out.cond$plot_xy_clean_perCond = myGgplotXYtraj(
+  dt.nuc.sel.clean,
+  x.arg = 'Location_Center_X.shift * c.scale.dist',
+  y.arg = 'Location_Center_Y.shift * c.scale.dist',
+  group.arg = s.met.tracklabel.uni,
+  facet.arg = 'Condition',
+  facet.ncol.arg = l.par$plot.cond.facets.ncol,
+  xlab.arg = '\nPosition X (um)',
+  ylab.arg = 'Position Y (um)\n',
+  plotlab.arg = s.exp.name, 
+  path.size.arg = 0.5, 
+  point.arg = dt.com.end, 
+  point.col.arg = 'COM',
+  point.size.arg = 3
+)
+
 p.out.cond$plot_xy_colDir_perCond = myGgplotXYtraj(
   dt.nuc.sel,
+  x.arg = 'Location_Center_X * c.scale.dist',
+  y.arg = 'Location_Center_Y * c.scale.dist',
+  y.rev.arg = TRUE,
+  group.arg = s.met.tracklabel.uni,
+  facet.arg = 'Condition',
+  facet.ncol.arg = l.par$plot.cond.facets.ncol,
+  xlab.arg = '\nPosition X (um)',
+  ylab.arg = 'Position Y (um)\n',
+  plotlab.arg = s.exp.name,
+  path.col.arg = "dTh",
+  path.size.arg = 2
+)
+
+p.out.cond$plot_xy_colDir_clean_perCond = myGgplotXYtraj(
+  dt.nuc.sel.clean,
   x.arg = 'Location_Center_X * c.scale.dist',
   y.arg = 'Location_Center_Y * c.scale.dist',
   y.rev.arg = TRUE,
@@ -374,25 +434,66 @@ p.out.cond$plot_instV_perCond = myGgplotTraj(
   xaxisbreaks.arg = 2
 )
 
+p.out.cond$plot_instV_clean_perCond = myGgplotTraj(
+  dt.arg = dt.nuc.sel.clean,
+  x.arg = 'RealTime.h',
+  y.arg = "dV.umh",
+  group.arg = s.met.tracklabel.uni,
+  facet.arg = 'Condition',
+  facet.ncol.arg = l.par$plot.cond.facets.ncol,
+  summary.arg = TRUE,
+  xlab.arg = "\nTime (h)",
+  ylab.arg = "Instantaneous velocity (um/h)\n",
+  plotlab.arg = s.exp.name,
+  maxrt.arg = l.par$exp.analysis,
+  xaxisbreaks.arg = 2
+)
+
 
 p.out.box$plot_box_pers_perCond = myGgplotBoxPlot(dt.pers, 
-                x.arg = 'Condition',  
-                y.arg = 'pers',
-                group.arg = 'Condition',
-                xlab.arg = '',
-                ylab.arg = 'Persistence\n',
-                plotlab.arg = s.exp.name,
-                y.lim.perc = c(0.05, 0.95))
+                                                  x.arg = 'Condition',  
+                                                  y.arg = 'pers',
+                                                  group.arg = 'Condition',
+                                                  xlab.arg = '',
+                                                  ylab.arg = 'Persistence\n',
+                                                  plotlab.arg = s.exp.name,
+                                                  y.lim.perc = c(0.05, 0.95),
+                                                  Dots_Dim = 0.01)
+
+
+
+p.out.box$plot_box_pers_clean_perCond = myGgplotBoxPlot(dt.pers.clean, 
+                                                  x.arg = 'Condition',  
+                                                  y.arg = 'pers',
+                                                  group.arg = 'Condition',
+                                                  xlab.arg = '',
+                                                  ylab.arg = 'Persistence\n',
+                                                  plotlab.arg = s.exp.name,
+                                                  y.lim.perc = c(0.05, 0.95),
+                                                  Dots_Dim = 0.01)
 
 
 p.out.box$plot_box_totDist_perCond = myGgplotBoxPlot(dt.pers, 
-                x.arg = 'Condition',  
-                y.arg = 'dRtotal.um',
-                group.arg = 'Condition',
-                xlab.arg = '',
-                ylab.arg = 'Total distance (um)\n',
-                plotlab.arg = s.exp.name,
-                y.lim.perc = c(0.05, 0.95))
+                                                     x.arg = 'Condition',  
+                                                     y.arg = 'dRtotal.um',
+                                                     group.arg = 'Condition',
+                                                     xlab.arg = '',
+                                                     ylab.arg = 'Total distance (um)\n',
+                                                     plotlab.arg = s.exp.name,
+                                                     y.lim.perc = c(0.05, 0.95),
+                                                     Dots_Dim = 3.5)
+
+p.out.box$plot_box_totDist_clean_perCond = myGgplotBoxPlot(dt.pers.clean, 
+                                                     x.arg = 'Condition',  
+                                                     y.arg = 'dRtotal.um',
+                                                     group.arg = 'Condition',
+                                                     xlab.arg = '',
+                                                     ylab.arg = 'Total distance (um)\n',
+                                                     plotlab.arg = s.exp.name,
+                                                     y.lim.perc = c(0.05, 0.95),
+                                                     Dots_Dim = 3.5)
+
+
 
 
 p.out.box$plot_box_instVel_perCond = myGgplotBoxPlot(dt.pers, 
@@ -402,17 +503,54 @@ p.out.box$plot_box_instVel_perCond = myGgplotBoxPlot(dt.pers,
                                                      xlab.arg = '',
                                                      ylab.arg = 'Mean instantaneous velocity (um/h)\n',
                                                      plotlab.arg = s.exp.name,
-                                                     y.lim.perc = c(0.05, 0.95))
+                                                     y.lim.perc = c(0.05, 0.95),
+                                                     Dots_Dim = 0.5)
+
+p.out.box$plot_box_instVel_clean_perCond = myGgplotBoxPlot(dt.pers.clean, 
+                                                     x.arg = 'Condition',  
+                                                     y.arg = 'dV.umh',
+                                                     group.arg = 'Condition',
+                                                     xlab.arg = '',
+                                                     ylab.arg = 'Mean instantaneous velocity (um/h)\n',
+                                                     plotlab.arg = s.exp.name,
+                                                     y.lim.perc = c(0.05, 0.95),
+                                                     Dots_Dim = 0.5)
+
+
+
 
 p.out.box$plot_dens_instV_perCond = myGgplotDens(dt.nuc.sel[complete.cases(dt.nuc.sel)], 
-             x.arg = 'dV.umh',  
-             group.arg = 'Condition',
-             xlab.arg = '\nInstantaneous velocity (um/h)',
-             ylab.arg = 'Density\n',
-             plotlab.arg = s.exp.name,
-             vline.dt.arg = dt.nuc.sel.stat.instvel.med.percond)
+                                                 x.arg = 'dV.umh',  
+                                                 group.arg = 'Condition',
+                                                 xlab.arg = '\nInstantaneous velocity (um/h)',
+                                                 ylab.arg = 'Density\n',
+                                                 plotlab.arg = s.exp.name,
+                                                 vline.dt.arg = dt.nuc.sel.stat.instvel.med.percond)
+
+p.out.box$plot_dens_instV_clean_perCond = myGgplotDens(dt.nuc.sel.clean[complete.cases(dt.nuc.sel.clean)], 
+                                                 x.arg = 'dV.umh',  
+                                                 group.arg = 'Condition',
+                                                 xlab.arg = '\nInstantaneous velocity (um/h)',
+                                                 ylab.arg = 'Density\n',
+                                                 plotlab.arg = s.exp.name,
+                                                 vline.dt.arg = dt.nuc.sel.clean.stat.instvel.med.percond)
 
 
+p.out.heatmap$plot_stat_totDist_clean_perCond = myRasterPlot(test.res.dRtotal, 
+                                                          in.title.string = sprintf('Pairwise Wilcoxon test with %s correction', pval.adjust.method),
+                                                          in.subtitle.string = 'Total distance (um) from cleaned data') 
+
+
+p.out.heatmap$plot_stat_pers_clean_perCond = myRasterPlot(test.res.pers, 
+                                                            in.title.string = sprintf('Pairwise Wilcoxon test with %s correction', pval.adjust.method),
+                                                            in.subtitle.string = 'Persistence from cleaned data') 
+
+  
+p.out.heatmap$plot_stat_instVel_clean_perCond = myRasterPlot(test.res.dV, 
+                                                               in.title.string = sprintf('Pairwise Wilcoxon test with %s correction', pval.adjust.method),
+                                                               in.subtitle.string = 'Instantaneous velocity (um/h) from cleaned data') 
+  
+  
 # Interactive plot
 # if (interactive()) {
 #    library(plotly)
@@ -428,7 +566,7 @@ p.out.box$plot_dens_instV_perCond = myGgplotDens(dt.nuc.sel[complete.cases(dt.nu
 #####
 ## Save files
 
-# Create directory for plots in the currenty working directory
+# Create directory for plots in the current working directory
 ifelse(!dir.exists(file.path(".", l.par$dir.plot)), dir.create(file.path(".", l.par$dir.plot)), FALSE)
 
 if (l.par$plot.save) {
@@ -461,9 +599,18 @@ if (l.par$plot.save) {
              height = l.par$plot.box.height
            ))
 
-    # tables
+  lapply(names(p.out.heatmap),
+         function(x)
+           ggsave(
+             filename = paste0(l.par$dir.plot, '/', x, ".png"),
+             plot = p.out.heatmap[[x]],
+             width =  l.par$plot.box.width, 
+             height = l.par$plot.box.height
+           ))
+  
+  # tables
   # tab-delimited files per condition that are read by IBIDI tool
-  dt.nuc.out = dt.nuc.sel[, c('Condition', s.met.tracklabel.uni, 'RealTime.m', 'Location_Center_X', 'Location_Center_Y'), with = FALSE]
+  dt.nuc.out = dt.nuc.sel.clean[, c('Condition', s.met.tracklabel.uni, 'RealTime.m', 'Location_Center_X', 'Location_Center_Y'), with = FALSE]
   dt.nuc.out[, `:=`(rowIndx = .I, TrackNo = .GRP, SliceNo = 1:.N, PosX = as.integer(round(1000*Location_Center_X)), PosY = as.integer(round(1000*Location_Center_Y))), by = s.met.tracklabel.uni]
   
   lapply(unique(dt.nuc.out[, Condition]),
@@ -472,15 +619,11 @@ if (l.par$plot.save) {
          )
     
   # number of cells per site and per condition
-  pdf(paste0(l.par$dir.plot, '/', "tab_ncells_perSite.pdf"),
-      height = 7,
-      width = 5)
+  pdf(paste0(l.par$dir.plot, '/', "tab_ncells_perSite.pdf"))
   grid.table(dt.ncells.persite)
   dev.off()
   
-  pdf(paste0(l.par$dir.plot, '/', "tab_ncells_perCondition.pdf"),
-      height = 4,
-      width = 4)
+  pdf(paste0(l.par$dir.plot, '/', "tab_ncells_perCondition.pdf"))
   grid.table(dt.ncells.percond)
   dev.off()
 }

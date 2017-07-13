@@ -17,7 +17,7 @@ nrow(dt.nuc.sel[complete.cases(dt.nuc.sel)])
 
 dt.nuc.sel.comp = dt.nuc.sel[complete.cases(dt.nuc.sel)]
 
-dt.nuc.sel.sub = dt.nuc.sel.comp[Condition %like% 'Chemokinesis']
+dt.nuc.sel.sub = dt.nuc.sel.comp[Condition %like% 'Hapto']
 
 myGgplotDens(dt.nuc.sel.sub, 
              x.arg = 'dV.umh',  
@@ -29,4 +29,8 @@ myGgplotDens(dt.nuc.sel.sub,
 
 dt.nuc.sel.sub[, peak := ifelse(dV.umh < 7, 0, 1)]
 
-dt.nuc.sel.sub[, mean(peak), by = 'Condition']
+dt.tmp = dt.nuc.sel.sub[, mean(peak), by = c('Condition', s.met.tracklabel.uni)]
+
+ggplot(dt.tmp, aes(x = V1, y = ..density..)) +
+  geom_density() +
+  facet_wrap(~ Condition)
