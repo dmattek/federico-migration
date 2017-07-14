@@ -329,9 +329,13 @@ dt.nuc.sel.clean.stat.instvel.med.percond = dt.nuc.sel.clean[, median(dV.umh, na
 
 
 pval.adjust.method = 'fdr'
+
+# Wilcoxon test
 test.res.dRtotal = myWilcoxTest(dt.pers.clean$dRtotal.um, dt.pers.clean$Condition, in.method = pval.adjust.method)
 test.res.pers = myWilcoxTest(dt.pers.clean$pers, dt.pers.clean$Condition, in.method = pval.adjust.method)
 test.res.dV = myWilcoxTest(dt.pers.clean$dV.umh, dt.pers.clean$Condition, in.method = pval.adjust.method)
+
+
 
 #####
 ## Plotting 
@@ -548,7 +552,7 @@ p.out.heatmap$plot_stat_pers_clean_perCond = myRasterPlot(test.res.pers,
   
 p.out.heatmap$plot_stat_instVel_clean_perCond = myRasterPlot(test.res.dV, 
                                                                in.title.string = sprintf('Pairwise Wilcoxon test with %s correction', pval.adjust.method),
-                                                               in.subtitle.string = 'Instantaneous velocity (um/h) from cleaned data') 
+                                                               in.subtitle.string = 'Mean instantaneous velocity (um/h) from cleaned data') 
   
   
 # Interactive plot

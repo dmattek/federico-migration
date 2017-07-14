@@ -260,13 +260,14 @@ myResc = function(in.dt,
 
 myWilcoxTest = function(in.data.x, 
                         in.data.cat, 
-                        in.method = 'fdr', 
+                        in.method = p.adjust.methods, 
                         in.cut = c(0, 0.0001, 0.001, 0.01, 0.05, 1)) {
-  test.res = pairwise.wilcox.test(in.data.x, in.data.cat, p.adjust.method = in.method, paired = FALSE, alternative = 'two.sided')
-  test.res.pval = as.data.table(melt(test.res$p.value))
-  test.res.pval[, pval.levels := cut(value, in.cut, right = TRUE, include.lowest = TRUE) ]
   
-  return(test.res.pval)
+  loc.test.res = pairwise.wilcox.test(in.data.x, in.data.cat, p.adjust.method = match.arg(in.method), paired = FALSE, alternative = 'two.sided')
+  loc.test.res.pval = as.data.table(melt(loc.test.res$p.value))
+  loc.test.res.pval[, pval.levels := cut(value, in.cut, right = TRUE, include.lowest = TRUE) ]
+  
+  return(loc.test.res.pval)
 }
 
 
@@ -591,11 +592,11 @@ myRasterPlot = function(in.data,
                         in.title.string = '',
                         in.subtitle.string = '',
                         in.legend.string = 'p-value:',
-                        in.breaks = rev(c( '[0,0.0001]', '(0.0001,0.001]', '(0.001,0.01]', '(0.01,0.05]', '(0.05,1]','<NA>')),
-                        in.labels = rev(c('<= 0.0001', '<= 0.001', "<= 0.01", '<= 0.05', '> 0.05',"")),
+                        in.breaks = rev(c( '[0,0.0001]', '(0.0001,0.001]', '(0.001,0.01]', '(0.01,0.05]', '(0.05,1]', '<NA>')),
+                        in.labels = rev(c('<= 0.0001', '<= 0.001', "<= 0.01", '<= 0.05', '> 0.05', '')),
                         in.col.vals = rhg_cols[(c(3,4,5,7,8))]) {
   
-  p.out = ggplot(test.res.pers, aes_string(x = in.x, y = in.y, fill = in.fill)) + 
+  p.out = ggplot(in.data, aes_string(x = in.x, y = in.y, fill = in.fill)) + 
     geom_raster() + 
     scale_fill_manual(name = in.legend.string,
                       na.value = 'white',
